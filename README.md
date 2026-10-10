@@ -74,6 +74,8 @@ npm run dev
 
 Open the local URL printed by Vite (normally `http://127.0.0.1:5173`). The Vite development server proxies `/api` requests to the local FastAPI backend.
 
+Keep both terminals running while using the app. If analysis reports that it cannot reach the API, check `http://127.0.0.1:8000/api/health` returns `{"status":"ok"}` and restart the backend command if needed.
+
 ## Deploy to Render
 
 The included `render.yaml` and `Dockerfile` deploy the Vite frontend and FastAPI backend as **one web service**. The backend serves the built frontend and the `/api` routes from the same origin, so production does not depend on a separately configured `VITE_API_BASE_URL`, a manually copied backend URL, or a production CORS allowlist. The Vite proxy remains available for local development.

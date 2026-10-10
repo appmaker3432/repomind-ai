@@ -29,6 +29,13 @@ describe("production API URL configuration", () => {
 });
 
 describe("analysis API errors", () => {
+  it("explains how to restore the API connection when fetch cannot reach the backend", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
+    await expect(
+      analyzeRepository("https://github.com/octocat/hello-world"),
+    ).rejects.toThrow("start the FastAPI backend on http://127.0.0.1:8000");
+  });
+
   it("explains when a deployed frontend is not connected to its API", async () => {
     vi.stubGlobal(
       "fetch",

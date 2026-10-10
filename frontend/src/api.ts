@@ -28,11 +28,21 @@ export function isPublicGitHubRepositoryUrl(value: string): boolean {
 export async function analyzeRepository(
   repositoryUrl: string,
 ): Promise<AnalysisReport> {
-  const response = await fetch(apiUrl("/api/analyze"), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ repository_url: repositoryUrl }),
-  });
+  let response: Response;
+  try {
+    response = await fetch(apiUrl("/api/analyze"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ repository_url: repositoryUrl }),
+    });
+  } catch (error) {
+    if (error instanceof TypeError) {
+      throw new AnalysisError(
+        "Cannot reach RepoMind's analysis API. For local development, start the FastAPI backend on http://127.0.0.1:8000. For the deployed site, verify the API deployment and set Vercel's Root Directory to the repository root (.).",
+      );
+    }
+    throw error;
+  }
   if (!response.ok) {
     let message = `Analysis failed with HTTP ${response.status}.`;
     const contentType = response.headers.get("content-type") ?? "";
