@@ -8,7 +8,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse, Response
 
-from .config import get_settings
+from .config import get_settings, parse_frontend_origins
 from .dependency_audit import audit_dependencies
 from .github_client import (
     MAX_SOURCE_FILES,
@@ -36,7 +36,7 @@ async def lifespan(_: FastAPI):
 app = FastAPI(title="RepoMind AI", version="0.1.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=parse_frontend_origins(get_settings().frontend_origins),
     allow_credentials=False,
     allow_methods=["GET", "POST"],
     allow_headers=["Content-Type"],

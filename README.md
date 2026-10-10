@@ -80,6 +80,55 @@ npm run dev
 
 Open the local URL printed by Vite (normally `http://127.0.0.1:5173`). The Vite development server proxies `/api` requests to the local FastAPI backend.
 
+## Deploy to Render
+
+This repository uses two Render services: a **Python Web Service** for FastAPI and a **Static Site** for the Vite frontend. The API URL and browser CORS allowlist are configured separately so the production frontend calls only the backend you specify.
+
+### 1. Push the deployment configuration
+
+The frontend reads `VITE_API_BASE_URL` at build time. The backend reads `FRONTEND_ORIGINS` at startup. Commit and push these changes to `main` before creating deployments; Render builds from the GitHub repository, not from unpushed local files.
+
+### 2. Create the FastAPI Web Service
+
+In Render, choose **New → Web Service**, connect `appmaker3432/repomind-ai`, and configure:
+
+| Setting | Value |
+| --- | --- |
+| Root Directory | `backend` |
+| Runtime | Python |
+| Build Command | `pip install -r requirements.txt` |
+| Start Command | `uvicorn app.main:app --host 0.0.0.0 --port $PORT` |
+| Health Check Path | `/api/health` |
+
+Add environment variables in the service settings:
+
+| Key | Value |
+| --- | --- |
+| `FRONTEND_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173` initially |
+| `OLLAMA_BASE_URL` | Leave unset unless your deployment has an Ollama endpoint reachable by the backend |
+| `OLLAMA_MODEL` | Leave unset until you have selected and tested a model |
+
+Do not set an OpenAI key unless you intend to use that provider; add `OPENAI_API_KEY` as a secret in Render's dashboard, never in GitHub. Render assigns the backend its own `onrender.com` URL after creation. Record that URL. The `/api/health` endpoint should return `{"status":"ok"}`.
+
+### 3. Create the Vite Static Site
+
+Choose **New → Static Site**, connect the same GitHub repository, and set:
+
+| Setting | Value |
+| --- | --- |
+| Root Directory | `frontend` |
+| Build Command | `npm ci && npm run build` |
+| Publish Directory | `dist` |
+| `VITE_API_BASE_URL` environment variable | The backend service origin from step 2, with no `/api` suffix, e.g. `https://your-api.onrender.com` |
+
+After the first deploy, copy the Static Site's exact `https://...onrender.com` origin (scheme plus hostname, without a path). Add that exact origin to the backend's `FRONTEND_ORIGINS` value, keeping the two localhost origins if you also want local development, then redeploy the backend. Do not use a wildcard CORS origin.
+
+### 4. Verify production behavior
+
+Open the Static Site URL and analyze a public repository in **No AI — scanners only** mode. Confirm the browser can reach the API, results and exports load, invalid input shows an error, and the backend logs contain no secrets. If a browser CORS error appears, check that `FRONTEND_ORIGINS` exactly matches the Static Site origin and that `VITE_API_BASE_URL` points to the backend Web Service, then redeploy the changed service.
+
+The Vite `/api` proxy is development-only. The production `VITE_API_BASE_URL` setting is required when the frontend and API are separate services. Deployment credit balances, eligible service types, and service pricing depend on the Render account; review Render's dashboard before selecting a paid instance or enabling autoscaling. Do not assume local Ollama is available inside a hosted backend: the configured Ollama endpoint must be reachable from Render, or leave AI disabled.
+
 ### Configure AI providers
 
 Copy `backend/.env.example` to `backend/.env`. The application and dashboard work without an API key and default to **No AI**.

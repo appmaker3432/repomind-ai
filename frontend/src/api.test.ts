@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { buildMarkdownReport, isPublicGitHubRepositoryUrl } from "./api";
+import { apiUrl, buildMarkdownReport, isPublicGitHubRepositoryUrl } from "./api";
 import type { AnalysisReport } from "./types";
 
 describe("public repository URL validation", () => {
@@ -10,6 +10,21 @@ describe("public repository URL validation", () => {
     expect(isPublicGitHubRepositoryUrl("http://github.com/octocat/repo")).toBe(false);
     expect(isPublicGitHubRepositoryUrl("https://github.com/octocat/repo/issues")).toBe(false);
     expect(isPublicGitHubRepositoryUrl("https://user@github.com/octocat/repo")).toBe(false);
+  });
+});
+
+describe("production API URL configuration", () => {
+  it("uses the relative same-origin path locally when no base URL is set", () => {
+    expect(apiUrl("/api/analyze")).toBe("/api/analyze");
+  });
+
+  it("uses the configured backend origin and removes trailing slashes", () => {
+    vi.stubEnv("VITE_API_BASE_URL", "https://repomind-api.example.onrender.com/");
+    try {
+      expect(apiUrl("/api/analyze")).toBe("https://repomind-api.example.onrender.com/api/analyze");
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 });
 

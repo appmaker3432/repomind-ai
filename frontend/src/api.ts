@@ -2,6 +2,11 @@ import type { AiProvider, AnalysisReport } from "./types";
 
 export class AnalysisError extends Error {}
 
+export function apiUrl(path: string): string {
+  const baseUrl = (import.meta.env.VITE_API_BASE_URL ?? "").trim().replace(/\/+$/, "");
+  return `${baseUrl}${path}`;
+}
+
 export function isPublicGitHubRepositoryUrl(value: string): boolean {
   try {
     const url = new URL(value.trim());
@@ -25,7 +30,7 @@ export async function analyzeRepository(
   aiProvider: AiProvider,
   consentToSendSource: boolean,
 ): Promise<AnalysisReport> {
-  const response = await fetch("/api/analyze", {
+  const response = await fetch(apiUrl("/api/analyze"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
