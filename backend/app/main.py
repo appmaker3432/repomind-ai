@@ -1,12 +1,14 @@
 import asyncio
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
+from pathlib import Path
 from time import monotonic
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse, Response
+from fastapi.staticfiles import StaticFiles
 
 from .config import get_settings, parse_frontend_origins
 from .dependency_audit import audit_dependencies
@@ -215,3 +217,8 @@ async def json_report(report: AnalysisResponse) -> Response:
     from .report import to_json
 
     return Response(content=to_json(report), media_type="application/json")
+
+
+frontend_dist = Path(__file__).resolve().parents[2] / "frontend" / "dist"
+if frontend_dist.is_dir():
+    app.mount("/", StaticFiles(directory=frontend_dist, html=True), name="frontend")

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { apiUrl, buildMarkdownReport, isPublicGitHubRepositoryUrl } from "./api";
+import { analyzeRepository, apiUrl, buildMarkdownReport, isPublicGitHubRepositoryUrl } from "./api";
 import type { AnalysisReport } from "./types";
 
 describe("public repository URL validation", () => {
@@ -25,6 +25,23 @@ describe("production API URL configuration", () => {
     } finally {
       vi.unstubAllEnvs();
     }
+  });
+});
+
+describe("analysis API errors", () => {
+  it("explains when a deployed frontend is not connected to its API", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response("<!doctype html><title>Not found</title>", {
+          status: 404,
+          headers: { "Content-Type": "text/html" },
+        }),
+      ),
+    );
+    await expect(
+      analyzeRepository("https://github.com/octocat/hello-world", "openai", true),
+    ).rejects.toThrow("analysis API endpoint was not found");
   });
 });
 

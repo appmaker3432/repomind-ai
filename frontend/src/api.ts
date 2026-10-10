@@ -41,6 +41,11 @@ export async function analyzeRepository(
   });
   if (!response.ok) {
     let message = `Analysis failed with HTTP ${response.status}.`;
+    const contentType = response.headers.get("content-type") ?? "";
+    if (response.status === 404 && !contentType.includes("application/json")) {
+      message =
+        "The analysis API endpoint was not found. This deployment may be outdated or misconfigured; contact the site maintainer.";
+    }
     try {
       const payload: unknown = await response.json();
       if (typeof payload === "object" && payload !== null && "detail" in payload) {

@@ -1,0 +1,6 @@
+services:
+  - type: web
+    name: repomind-ai
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/health

@@ -1,5 +1,7 @@
 # RepoMind AI
 
+**Live app:** [repomind-ai-vert.vercel.app](https://repomind-ai-vert.vercel.app/)
+
 ## Project overview
 
 RepoMind AI helps people understand and inspect public GitHub repositories before they trust, ship, or send repository context to an AI model. It combines transparent, bounded repository inspection with optional local or consent-gated AI analysis.
@@ -83,52 +85,27 @@ Open the local URL printed by Vite (normally `http://127.0.0.1:5173`). The Vite 
 
 ## Deploy to Render
 
-This repository uses two Render services: a **Python Web Service** for FastAPI and a **Static Site** for the Vite frontend. The API URL and browser CORS allowlist are configured separately so the production frontend calls only the backend you specify.
+The included `render.yaml` and `Dockerfile` deploy the Vite frontend and FastAPI backend as **one web service**. The backend serves the built frontend and the `/api` routes from the same origin, so production does not depend on a separately configured `VITE_API_BASE_URL`, a manually copied backend URL, or a production CORS allowlist. The Vite proxy remains available for local development.
 
-### 1. Push the deployment configuration
+1. Push the repository, including `render.yaml` and `Dockerfile`, to GitHub.
+2. In Render, choose **New → Blueprint**, connect the repository, and apply the `repomind-ai` service described by `render.yaml`.
+3. When prompted for environment variables, add an OpenAI API key and model if you want online OpenAI analysis, or a Gemini key and model for Gemini. These settings are optional; no-AI analysis works without provider credentials. Keep provider keys in Render's secret environment settings, never in source control. Ollama is optional and only works when its configured URL is reachable from the deployed service.
+4. Wait for the deploy to finish, then verify `/api/health` returns `{"status":"ok"}` and analyze a public repository with **No AI — scanners only**. Online providers additionally require a valid provider key and model configured on the service.
 
-The frontend reads `VITE_API_BASE_URL` at build time. The backend reads `FRONTEND_ORIGINS` at startup. Commit and push these changes to `main` before creating deployments; Render builds from the GitHub repository, not from unpushed local files.
+Do not deploy the frontend as a separate Static Site with this configuration: the intended setup serves it from the API service. If using a separate frontend deployment instead, it must set `VITE_API_BASE_URL` to the backend origin and the backend must allow that exact frontend origin in `FRONTEND_ORIGINS`.
 
-### 2. Create the FastAPI Web Service
+Render's free service may spin down while idle, so the first request can take longer while it starts. Review Render's current plan limits and service availability before deploying.
 
-In Render, choose **New → Web Service**, connect `appmaker3432/repomind-ai`, and configure:
+## Deploy to Vercel
 
-| Setting | Value |
-| --- | --- |
-| Root Directory | `backend` |
-| Runtime | Python |
-| Build Command | `pip install -r requirements.txt` |
-| Start Command | `uvicorn app.main:app --host 0.0.0.0 --port $PORT` |
-| Health Check Path | `/api/health` |
+The repository root includes a Vercel FastAPI entrypoint configuration and build script. This builds the Vite app, then deploys the frontend and FastAPI API routes together so the live site's relative `/api/analyze` request reaches the backend on the same origin.
 
-Add environment variables in the service settings:
+1. In the Vercel project settings, set **Root Directory** to the repository root (not `frontend` or `backend`). Remove any custom Build Command or Output Directory overrides so Vercel can use `pyproject.toml`, and remove any `VITE_API_BASE_URL` environment variable so the frontend uses the same-origin API.
+2. Redeploy from the repository. Vercel installs Python packages listed through the root `requirements.txt` and builds the frontend using the script in `pyproject.toml`.
+3. Add provider environment variables in Vercel's project settings only if needed: `OPENAI_API_KEY` and `OPENAI_MODEL`, or `GEMINI_API_KEY` and `GEMINI_MODEL`. No-AI analysis works without these keys. Do not store API keys in the frontend or commit them.
+4. Verify `https://repomind-ai-vert.vercel.app/api/health` returns `{"status":"ok"}`, then try an analysis in **No AI — scanners only** mode.
 
-| Key | Value |
-| --- | --- |
-| `FRONTEND_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173` initially |
-| `OLLAMA_BASE_URL` | Leave unset unless your deployment has an Ollama endpoint reachable by the backend |
-| `OLLAMA_MODEL` | Leave unset until you have selected and tested a model |
-
-Leave `OPENAI_API_KEY`, `GEMINI_API_KEY`, and their model settings unset unless you intend to use those providers. If enabled, add keys as secrets in Render's dashboard, never in GitHub. Render assigns the backend its own `onrender.com` URL after creation. Record that URL. The `/api/health` endpoint should return `{"status":"ok"}`.
-
-### 3. Create the Vite Static Site
-
-Choose **New → Static Site**, connect the same GitHub repository, and set:
-
-| Setting | Value |
-| --- | --- |
-| Root Directory | `frontend` |
-| Build Command | `npm ci && npm run build` |
-| Publish Directory | `dist` |
-| `VITE_API_BASE_URL` environment variable | The backend service origin from step 2, with no `/api` suffix, e.g. `https://your-api.onrender.com` |
-
-After the first deploy, copy the Static Site's exact `https://...onrender.com` origin (scheme plus hostname, without a path). Add that exact origin to the backend's `FRONTEND_ORIGINS` value, keeping the two localhost origins if you also want local development, then redeploy the backend. Do not use a wildcard CORS origin.
-
-### 4. Verify production behavior
-
-Open the Static Site URL and analyze a public repository in **No AI — scanners only** mode. Confirm the browser can reach the API, results and exports load, invalid input shows an error, and the backend logs contain no secrets. If a browser CORS error appears, check that `FRONTEND_ORIGINS` exactly matches the Static Site origin and that `VITE_API_BASE_URL` points to the backend Web Service, then redeploy the changed service.
-
-The Vite `/api` proxy is development-only. The production `VITE_API_BASE_URL` setting is required when the frontend and API are separate services. Deployment credit balances, eligible service types, and service pricing depend on the Render account; review Render's dashboard before selecting a paid instance or enabling autoscaling. Do not assume local Ollama is available inside a hosted backend: the configured Ollama endpoint must be reachable from Render, or leave AI disabled.
+The Vercel project must deploy the repository root for its Python entrypoint and shared frontend build configuration to take effect. If the project remains rooted at `frontend`, Vercel will deploy only the static frontend and `/api/analyze` will continue to return 404.
 
 ### Configure AI providers
 
