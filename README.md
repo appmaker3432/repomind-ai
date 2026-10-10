@@ -89,12 +89,13 @@ Render's free service may spin down while idle, so the first request can take lo
 
 ## Deploy to Vercel
 
-The root `pyproject.toml` configures Vercel's FastAPI entrypoint and frontend build command. The build creates `frontend/dist`; FastAPI serves those files and its `/api` endpoints from the same deployment.
+The root `pyproject.toml` configures Vercel's FastAPI entrypoint and frontend build command. The root `vercel.json` explicitly selects Vercel's FastAPI framework and gives the API function a 60-second limit. The build creates `frontend/dist`; FastAPI serves those files and its `/api` endpoints from the same deployment.
 
-1. In the Vercel project settings, set **Root Directory** to the repository root (not `frontend` or `backend`). Remove custom Build Command and Output Directory overrides so Vercel detects the FastAPI app, and remove any `VITE_API_BASE_URL` environment variable so the frontend uses the same-origin API.
-2. Redeploy from the repository. Vercel installs Python packages listed through the root `requirements.txt` and builds the frontend using the script in `pyproject.toml`.
-3. No model, provider API key, or AI-related environment variables are needed.
-4. Verify `https://repomind-ai-vert.vercel.app/api/health` returns `{"status":"ok"}`, then analyze a public repository.
+1. In Vercel **Project Settings → Build and Deployment**, set **Root Directory** to `.` (the repository root, not `frontend` or `backend`), turn off **Override** for **Output Directory**, and remove any custom **Build Command** override. This is required so Vercel sees `vercel.json`, `pyproject.toml`, the root `requirements.txt`, and `backend/app/main.py`; a frontend-only root will publish the page but return 404 for every API route.
+2. Remove any `VITE_API_BASE_URL` environment variable so the frontend calls the same-origin API.
+3. Redeploy from the repository. Vercel installs the Python packages from the root `requirements.txt` and runs the frontend build configured in `pyproject.toml`.
+4. No model, provider API key, or AI-related environment variables are needed.
+5. Verify `https://repomind-ai-vert.vercel.app/api/health` returns `{"status":"ok"}`, then analyze a public repository.
 
 The Vercel project must deploy the repository root for its Python entrypoint and frontend build configuration to take effect. If the project remains rooted at `frontend`, Vercel will deploy only the static frontend and `/api/analyze` will continue to return 404.
 
