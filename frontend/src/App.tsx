@@ -3,6 +3,11 @@ import { useState, type FormEvent, type ReactNode } from "react";
 import { analyzeRepository, buildMarkdownReport, downloadReport, isPublicGitHubRepositoryUrl } from "./api";
 import type { AiProvider, AnalysisReport, SecurityFinding } from "./types";
 
+const DEFAULT_AI_MODELS = {
+  openai: "gpt-4o-mini",
+  gemini: "gemini-2.5-flash",
+};
+
 function Icon({ children }: { children: ReactNode }) {
   return <span className="icon" aria-hidden="true">{children}</span>;
 }
@@ -11,6 +16,8 @@ function App() {
   const [repositoryUrl, setRepositoryUrl] = useState("");
   const [provider, setProvider] = useState<AiProvider>("none");
   const [onlineConsent, setOnlineConsent] = useState(false);
+  const [apiKey, setApiKey] = useState("");
+  const [aiModel, setAiModel] = useState("");
   const [report, setReport] = useState<AnalysisReport | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -27,12 +34,21 @@ function App() {
       setError("Give explicit consent before sending repository context to the online AI provider.");
       return;
     }
+    if ((provider === "openai" || provider === "gemini") && !apiKey.trim()) {
+      setError("Enter your API key to run online AI analysis.");
+      return;
+    }
+    if ((provider === "openai" || provider === "gemini") && !aiModel.trim()) {
+      setError("Enter a model name available to your API key.");
+      return;
+    }
     setLoading(true);
     try {
-      setReport(await analyzeRepository(repositoryUrl, provider, onlineConsent));
+      setReport(await analyzeRepository(repositoryUrl, provider, onlineConsent, apiKey.trim(), aiModel.trim()));
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Analysis could not be completed.");
     } finally {
+      setApiKey("");
       setLoading(false);
     }
   }
@@ -87,8 +103,11 @@ function App() {
                 id="provider"
                 value={provider}
                 onChange={(event) => {
-                  setProvider(event.target.value as AiProvider);
+                  const nextProvider = event.target.value as AiProvider;
+                  setProvider(nextProvider);
                   setOnlineConsent(false);
+                  setApiKey("");
+                  setAiModel(nextProvider === "openai" || nextProvider === "gemini" ? DEFAULT_AI_MODELS[nextProvider] : "");
                 }}
               >
                 <option value="none">No AI — scanners only</option>
@@ -102,17 +121,46 @@ function App() {
               <p className="provider-hint">Uses the Ollama model configured on the backend. For an open-source AI showcase, select an open-weight model; RepoMind does not verify model licenses. Source is sent to your local Ollama service.</p>
             )}
             {(provider === "openai" || provider === "gemini") && (
-              <label className="consent">
-                <input
-                  type="checkbox"
-                  checked={onlineConsent}
-                  onChange={(event) => setOnlineConsent(event.target.checked)}
-                />
-                <span>
-                  I consent to sending the selected public repository context to the configured{" "}
-                  {provider === "gemini" ? "Google Gemini" : "OpenAI"} API for this analysis.
-                </span>
-              </label>
+              <>
+                <div className="credential-fields">
+                  <label className="credential-field">
+                    <span className="field-label">{provider === "gemini" ? "YOUR GOOGLE GEMINI API KEY" : "YOUR OPENAI API KEY"}</span>
+                    <input
+                      type="password"
+                      value={apiKey}
+                      onChange={(event) => setApiKey(event.target.value)}
+                      autoComplete="off"
+                      autoCapitalize="none"
+                      spellCheck={false}
+                      required
+                    />
+                  </label>
+                  <label className="credential-field">
+                    <span className="field-label">MODEL</span>
+                    <input
+                      type="text"
+                      value={aiModel}
+                      onChange={(event) => setAiModel(event.target.value)}
+                      autoComplete="off"
+                      required
+                    />
+                  </label>
+                </div>
+                <p className="provider-hint">
+                  Your key passes through this app's backend to {provider === "gemini" ? "Google Gemini" : "OpenAI"} for this request. RepoMind does not save it; it is cleared when the request finishes. Only enter a key on a deployment you trust.
+                </p>
+                <label className="consent">
+                  <input
+                    type="checkbox"
+                    checked={onlineConsent}
+                    onChange={(event) => setOnlineConsent(event.target.checked)}
+                  />
+                  <span>
+                    I consent to sending the selected public repository context to the{" "}
+                    {provider === "gemini" ? "Google Gemini" : "OpenAI"} API for this analysis.
+                  </span>
+                </label>
+              </>
             )}
             <div className="trust-row">
               <span><Icon>✓</Icon> Read-only public API</span>

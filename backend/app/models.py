@@ -1,12 +1,14 @@
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, SecretStr
 
 
 class AnalysisRequest(BaseModel):
     repository_url: str = Field(min_length=1, max_length=500)
     ai_provider: Literal["none", "ollama", "openai", "gemini"] = "none"
     consent_to_send_source: bool = False
+    api_key: SecretStr | None = Field(default=None, repr=False)
+    ai_model: str | None = Field(default=None, min_length=1, max_length=200)
 
 
 class RepositoryMetadata(BaseModel):

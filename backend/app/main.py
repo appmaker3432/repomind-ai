@@ -91,6 +91,10 @@ async def analyze(body: AnalysisRequest, request: Request) -> AnalysisResponse:
     if body.ai_provider in {"openai", "gemini"} and not body.consent_to_send_source:
         raise HTTPException(400, "Explicit consent is required before repository context is sent to an online AI provider.")
 
+    user_api_key = body.api_key.get_secret_value().strip() if body.api_key else None
+    if body.api_key is not None and (not user_api_key or len(user_api_key) > 500):
+        raise HTTPException(400, "API key must contain between 1 and 500 characters.")
+
     settings = get_settings()
     reference = parse_public_github_url(body.repository_url)
     timeout = httpx.Timeout(settings.request_timeout_seconds)
@@ -143,15 +147,18 @@ async def analyze(body: AnalysisRequest, request: Request) -> AnalysisResponse:
                 elif body.ai_provider == "gemini":
                     provider = GeminiProvider(
                         httpx.AsyncClient(timeout=25.0, follow_redirects=False),
-                        settings.gemini_api_key,
-                        settings.gemini_model,
+                        user_api_key or settings.gemini_api_key,
+                        body.ai_model or settings.gemini_model,
                     )
                     try:
                         summary, architecture, model = await provider.analyze(reference, context)
                     finally:
                         await provider.client.aclose()
                 else:
-                    provider = OpenAIProvider(settings.openai_api_key, settings.openai_model)
+                    provider = OpenAIProvider(
+                        user_api_key or settings.openai_api_key,
+                        body.ai_model or settings.openai_model,
+                    )
                     summary, architecture, model = await provider.analyze(reference, context)
                 ai_summary = AiSummary(
                     provider=provider.name,

@@ -29,6 +29,8 @@ export async function analyzeRepository(
   repositoryUrl: string,
   aiProvider: AiProvider,
   consentToSendSource: boolean,
+  apiKey?: string,
+  aiModel?: string,
 ): Promise<AnalysisReport> {
   const response = await fetch(apiUrl("/api/analyze"), {
     method: "POST",
@@ -37,6 +39,7 @@ export async function analyzeRepository(
       repository_url: repositoryUrl,
       ai_provider: aiProvider,
       consent_to_send_source: consentToSendSource,
+      ...(aiProvider === "openai" || aiProvider === "gemini" ? { api_key: apiKey, ai_model: aiModel } : {}),
     }),
   });
   if (!response.ok) {
