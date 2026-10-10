@@ -13,7 +13,7 @@ The first release implements:
 - Python static checks through Bandit, without executing repository code.
 - Vulnerability lookups for exact-pinned `requirements*.txt` entries and `package-lock.json` package versions using the OSV batch API.
 - A lightweight README section-presence checklist.
-- No-AI mode by default, a local Ollama chat provider, and an opt-in OpenAI chat-completions provider.
+- No-AI mode by default, a local Ollama chat provider, and opt-in OpenAI and Google Gemini API providers.
 - Evidence-labelled scanner findings and clearly caveated AI-generated summaries.
 - JSON and Markdown report downloads.
 - Optional AI-generated project summaries and architecture explanations returned as structured JSON; architecture statements are hypotheses to check against source, not verified diagrams.
@@ -36,9 +36,10 @@ FastAPI backend
       | none (default)
       | Ollama (configured local model)
       | OpenAI API (explicit user consent)
+      | Google Gemini API (explicit user consent)
 ```
 
-Repository URLs are parsed as `https://github.com/{owner}/{repo}`. The backend constructs requests only to the fixed `api.github.com` origin; it does not follow redirects, clone repositories, accept arbitrary URLs, or execute downloaded content. GitHub read requests are anonymous and subject to GitHub's rate limits. OSV receives dependency names and versions, not repository source. Online AI is never selected by default; when it is selected, the UI requires explicit consent before sending the bounded repository context to OpenAI.
+Repository URLs are parsed as `https://github.com/{owner}/{repo}`. The backend constructs requests only to the fixed `api.github.com` origin; it does not follow redirects, clone repositories, accept arbitrary URLs, or execute downloaded content. GitHub read requests are anonymous and subject to GitHub's rate limits. OSV receives dependency names and versions, not repository source. Online AI is never selected by default; when selected, the UI requires explicit consent before sending the bounded repository context to OpenAI or Google Gemini.
 
 ## Requirements
 
@@ -108,7 +109,7 @@ Add environment variables in the service settings:
 | `OLLAMA_BASE_URL` | Leave unset unless your deployment has an Ollama endpoint reachable by the backend |
 | `OLLAMA_MODEL` | Leave unset until you have selected and tested a model |
 
-Do not set an OpenAI key unless you intend to use that provider; add `OPENAI_API_KEY` as a secret in Render's dashboard, never in GitHub. Render assigns the backend its own `onrender.com` URL after creation. Record that URL. The `/api/health` endpoint should return `{"status":"ok"}`.
+Leave `OPENAI_API_KEY`, `GEMINI_API_KEY`, and their model settings unset unless you intend to use those providers. If enabled, add keys as secrets in Render's dashboard, never in GitHub. Render assigns the backend its own `onrender.com` URL after creation. Record that URL. The `/api/health` endpoint should return `{"status":"ok"}`.
 
 ### 3. Create the Vite Static Site
 
@@ -141,16 +142,18 @@ ollama list
 
 If the model is not already present, pull the exact model name shown in the Ollama model library, then set `OLLAMA_MODEL` to the name shown by `ollama list`, restart the backend, and select **Local Ollama model** in the dashboard. For the Hacktoberfest open-source AI category, choose an open-source/open-weight model and verify its license yourself; RepoMind does not validate model licenses. RepoMind sends the selected context to the configured Ollama endpoint; by default that endpoint is `http://127.0.0.1:11434`. It does not send prompts to a model unless you choose that provider.
 
-For online analysis, set `OPENAI_API_KEY` and `OPENAI_MODEL` in the backend environment, restart the backend, choose **Online OpenAI API**, and affirm the source-sharing consent checkbox for that analysis. The key is used only by the backend and is not returned to or bundled in the frontend. Never put real credentials in source control.
+For OpenAI analysis, set `OPENAI_API_KEY` and `OPENAI_MODEL` in the backend environment, choose **Online OpenAI API**, and affirm the source-sharing consent checkbox for that analysis.
 
-The provider interface is in `backend/app/providers/base.py`. This release implements Ollama's `/api/chat` and the OpenAI Python SDK's chat-completions call. Both are asked for a summary and architecture explanation as structured JSON. Other online providers are **not implemented**; adding a provider requires a real adapter, tests, and documentation rather than assuming compatibility.
+For Gemini analysis, set `GEMINI_API_KEY` and `GEMINI_MODEL` in the backend environment, choose **Online Google Gemini API**, and affirm the source-sharing consent checkbox for that analysis. Gemini calls use Google's native HTTPS API and structured JSON output; the API key is sent only in the server-to-server `x-goog-api-key` header and is never sent to the browser. Gemini is not accessed through an OpenAI-compatible endpoint. Rotate any API key that has been pasted into a chat, issue, or source file, then store its replacement only in the backend environment.
+
+The provider interface is in `backend/app/providers/base.py`. This release implements Ollama's `/api/chat`, the OpenAI Python SDK's chat-completions call, and Google's native Gemini `generateContent` API. Each provider returns a summary and architecture explanation validated as structured JSON. Other online providers are **not implemented**; adding a provider requires a real adapter, tests, and documentation rather than assuming compatibility.
 
 ## Usage
 
 1. Start the backend and frontend using the setup steps above.
 2. Paste a public GitHub repository URL such as `https://github.com/owner/repository`.
 3. Leave **No AI — scanners only** selected for metadata and supported scanner checks without any AI calls.
-4. Optionally choose a configured Ollama model for local summaries, or choose the configured OpenAI provider and give explicit consent before online source sharing.
+4. Optionally choose a configured Ollama model for local summaries, or choose a configured OpenAI/Gemini provider and give explicit consent before online source sharing.
 5. Review each scanner finding, file location, evidence, remediation, README checklist, and the documented coverage limits.
 6. Download a JSON or Markdown report from the results panel.
 
@@ -167,7 +170,7 @@ Contributions are welcome. Please open an issue describing the change, include t
 - The backend does not clone or execute repository contents. Bandit receives temporary source files as data, has a time limit, and runs only over fetched Python files.
 - The analysis has a 60-second overall deadline, a 200 MB advertised-repository-size limit, a 5,000-entry tree limit, a 6 MB response-body limit for each GitHub API response, at most 25 fetched source files, at most 200 KB per source file, and a 4 MB total source-download cap.
 - `.env`, credential/secret-named paths, common private-key files, and common local credential directories are excluded from source fetches. AI context also excludes likely secret assignment lines. These heuristics are imperfect: inspect a repository and its report before sharing source.
-- AI mode defaults to off. Ollama context stays with the backend's configured Ollama service. OpenAI analysis requires an explicit per-analysis consent action and sends bounded repository context to OpenAI. Do not use online analysis for repositories or content you do not have permission to share.
+- AI mode defaults to off. Ollama context stays with the backend's configured Ollama service. OpenAI and Gemini analysis require explicit per-analysis consent and send bounded repository context to the selected online provider. Do not use online analysis for repositories or content you do not have permission to share.
 - Dependency checks send supported package names and versions to OSV's public vulnerability service. The service is separate from AI providers.
 - The local API has a small in-memory per-client rate limit. It is not a substitute for authentication, a durable distributed limiter, or a production deployment security review. The development server binds to loopback by default; do not expose it publicly without adding deployment-grade controls.
 - Application secrets belong in the backend environment only. Keep `.env` files, API keys, and private repository content out of issues, reports, screenshots, and commits.

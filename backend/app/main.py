@@ -16,7 +16,7 @@ from .github_client import (
     parse_public_github_url,
 )
 from .models import AnalysisRequest, AnalysisResponse, AiSummary, DependencySummary, RepositoryMetadata
-from .providers import OllamaProvider, OpenAIProvider
+from .providers import GeminiProvider, OllamaProvider, OpenAIProvider
 from .readme_analysis import analyze_readme
 from .scanner import run_bandit
 from .security import is_sensitive_path, redact_sensitive_lines
@@ -86,7 +86,7 @@ async def health() -> dict[str, str]:
 @app.post("/api/analyze", response_model=AnalysisResponse)
 async def analyze(body: AnalysisRequest, request: Request) -> AnalysisResponse:
     _enforce_rate_limit(request)
-    if body.ai_provider == "openai" and not body.consent_to_send_source:
+    if body.ai_provider in {"openai", "gemini"} and not body.consent_to_send_source:
         raise HTTPException(400, "Explicit consent is required before repository context is sent to an online AI provider.")
 
     settings = get_settings()
@@ -134,6 +134,16 @@ async def analyze(body: AnalysisRequest, request: Request) -> AnalysisResponse:
                 context = _ai_context(readme, source_files, paths, repository.get("description"))
                 if body.ai_provider == "ollama":
                     provider = OllamaProvider(httpx.AsyncClient(timeout=25.0, follow_redirects=False), settings.ollama_base_url, settings.ollama_model)
+                    try:
+                        summary, architecture, model = await provider.analyze(reference, context)
+                    finally:
+                        await provider.client.aclose()
+                elif body.ai_provider == "gemini":
+                    provider = GeminiProvider(
+                        httpx.AsyncClient(timeout=25.0, follow_redirects=False),
+                        settings.gemini_api_key,
+                        settings.gemini_model,
+                    )
                     try:
                         summary, architecture, model = await provider.analyze(reference, context)
                     finally:

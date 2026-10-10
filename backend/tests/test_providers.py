@@ -6,6 +6,7 @@ from fastapi import HTTPException
 
 from app.github_client import RepositoryReference
 from app.providers.base import parse_ai_analysis
+from app.providers.gemini_provider import GeminiProvider
 from app.providers.ollama_provider import OllamaProvider
 from app.providers.openai_provider import OpenAIProvider
 
@@ -73,6 +74,76 @@ async def test_openai_adapter_uses_the_configured_model_and_closes_client(monkey
     assert "untrusted data" in calls[0]["messages"][0]["content"]
     assert calls[0]["response_format"] == {"type": "json_object"}
     assert client_closed
+
+
+@pytest.mark.asyncio
+async def test_gemini_adapter_uses_native_structured_output_and_closes_client(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict] = []
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(
+            {
+                "url": str(request.url),
+                "headers": request.headers,
+                "body": request.read().decode(),
+            }
+        )
+        return httpx.Response(
+            200,
+            json={
+                "candidates": [
+                    {
+                        "content": {
+                            "parts": [
+                                {
+                                    "text": (
+                                        '{"summary":"A repository summary.",'
+                                        '"architecture":"A documented module layout."}'
+                                    )
+                                }
+                            ]
+                        }
+                    }
+                ]
+            },
+        )
+
+    with pytest.raises(HTTPException, match="GEMINI_MODEL"):
+        GeminiProvider(httpx.AsyncClient(), "test-only-key", "")
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        provider = GeminiProvider(client, "test-only-key", "configured-gemini-model")
+        summary, architecture, model = await provider.analyze(
+            RepositoryReference("owner", "repo"), "context"
+        )
+
+    assert summary == "A repository summary."
+    assert architecture == "A documented module layout."
+    assert model == "configured-gemini-model"
+    assert calls[0]["url"].endswith("/models/configured-gemini-model:generateContent")
+    assert calls[0]["headers"]["x-goog-api-key"] == "test-only-key"
+    assert "test-only-key" not in calls[0]["url"]
+    assert '"responseMimeType":"application/json"' in calls[0]["body"]
+    assert '"summary"' in calls[0]["body"]
+    assert "untrusted data" in calls[0]["body"]
+
+
+@pytest.mark.asyncio
+async def test_gemini_translates_rate_limit_and_unavailable_responses() -> None:
+    for status, expected_status in ((429, 429), (503, 503)):
+        async with httpx.AsyncClient(
+            transport=httpx.MockTransport(lambda _: httpx.Response(status))
+        ) as client:
+            provider = GeminiProvider(client, "test-only-key", "configured-model")
+            with pytest.raises(HTTPException) as error:
+                await provider.analyze(RepositoryReference("owner", "repo"), "context")
+        assert error.value.status_code == expected_status
+
+
+def test_gemini_requires_an_explicitly_configured_model() -> None:
+    with pytest.raises(HTTPException, match="GEMINI_MODEL"):
+        GeminiProvider(httpx.AsyncClient(), "test-only-key", "")
 
 
 def test_ai_response_requires_summary_and_architecture() -> None:

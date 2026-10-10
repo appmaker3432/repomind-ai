@@ -1,4 +1,5 @@
 from fastapi.testclient import TestClient
+import pytest
 
 from app.config import parse_frontend_origins
 from app.main import _rate_buckets, app
@@ -15,13 +16,14 @@ def test_health_endpoint() -> None:
     assert response.json() == {"status": "ok"}
 
 
-def test_online_ai_requires_explicit_consent_before_network_access() -> None:
+@pytest.mark.parametrize("provider", ["openai", "gemini"])
+def test_online_ai_requires_explicit_consent_before_network_access(provider: str) -> None:
     with TestClient(app) as client:
         response = client.post(
             "/api/analyze",
             json={
                 "repository_url": "https://github.com/octocat/hello",
-                "ai_provider": "openai",
+                "ai_provider": provider,
                 "consent_to_send_source": False,
             },
         )

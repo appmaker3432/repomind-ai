@@ -23,15 +23,20 @@ describe("RepoMind dashboard", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it("requires explicit consent before online analysis", () => {
+  it.each([
+    ["openai", "OpenAI API"],
+    ["gemini", "Google Gemini API"],
+  ])("requires explicit consent before %s analysis", (provider, providerLabel) => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
     render(<App />);
     fireEvent.change(screen.getByLabelText("PUBLIC REPOSITORY URL"), {
       target: { value: "https://github.com/owner/repo" },
     });
-    fireEvent.change(screen.getByLabelText("AI ANALYSIS"), { target: { value: "openai" } });
+    fireEvent.change(screen.getByLabelText("AI ANALYSIS"), { target: { value: provider } });
     fireEvent.click(screen.getByRole("button", { name: /analyze repository/i }));
     expect(screen.getByRole("alert")).toHaveTextContent("explicit consent");
     expect(fetchSpy).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText("AI ANALYSIS"), { target: { value: provider } });
+    expect(screen.getByRole("checkbox")).toHaveAccessibleName(new RegExp(providerLabel));
   });
 });

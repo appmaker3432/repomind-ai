@@ -23,7 +23,7 @@ function App() {
       setError("Enter a public GitHub URL in the form https://github.com/owner/repository.");
       return;
     }
-    if (provider === "openai" && !onlineConsent) {
+    if ((provider === "openai" || provider === "gemini") && !onlineConsent) {
       setError("Give explicit consent before sending repository context to the online AI provider.");
       return;
     }
@@ -83,24 +83,35 @@ function App() {
             </div>
             <div className="form-options">
               <label className="field-label" htmlFor="provider">AI ANALYSIS</label>
-              <select id="provider" value={provider} onChange={(event) => setProvider(event.target.value as AiProvider)}>
+              <select
+                id="provider"
+                value={provider}
+                onChange={(event) => {
+                  setProvider(event.target.value as AiProvider);
+                  setOnlineConsent(false);
+                }}
+              >
                 <option value="none">No AI — scanners only</option>
                 <option value="ollama">Local Ollama model</option>
                 <option value="openai">Online OpenAI API</option>
+                <option value="gemini">Online Google Gemini API</option>
               </select>
               <span className="privacy-pill"><Icon>◈</Icon> Private by default</span>
             </div>
             {provider === "ollama" && (
               <p className="provider-hint">Uses the Ollama model configured on the backend. For an open-source AI showcase, select an open-weight model; RepoMind does not verify model licenses. Source is sent to your local Ollama service.</p>
             )}
-            {provider === "openai" && (
+            {(provider === "openai" || provider === "gemini") && (
               <label className="consent">
                 <input
                   type="checkbox"
                   checked={onlineConsent}
                   onChange={(event) => setOnlineConsent(event.target.checked)}
                 />
-                <span>I consent to sending the selected public repository context to the configured OpenAI API for this analysis.</span>
+                <span>
+                  I consent to sending the selected public repository context to the configured{" "}
+                  {provider === "gemini" ? "Google Gemini" : "OpenAI"} API for this analysis.
+                </span>
               </label>
             )}
             <div className="trust-row">

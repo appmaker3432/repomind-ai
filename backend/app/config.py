@@ -11,6 +11,8 @@ class Settings(BaseSettings):
     ollama_model: str = ""
     openai_api_key: str = ""
     openai_model: str = ""
+    gemini_api_key: str = ""
+    gemini_model: str = ""
     frontend_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
     request_timeout_seconds: float = 12.0
     max_analysis_seconds: float = 60.0

@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 
 class AnalysisRequest(BaseModel):
     repository_url: str = Field(min_length=1, max_length=500)
-    ai_provider: Literal["none", "ollama", "openai"] = "none"
+    ai_provider: Literal["none", "ollama", "openai", "gemini"] = "none"
     consent_to_send_source: bool = False
 
 

@@ -1,4 +1,4 @@
-export type AiProvider = "none" | "ollama" | "openai";
+export type AiProvider = "none" | "ollama" | "openai" | "gemini";
 
 export interface RepositoryMetadata {
   full_name: string;
