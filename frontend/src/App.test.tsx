@@ -23,30 +23,33 @@ describe("RepoMind dashboard", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it.each([
-    ["openai", "OpenAI API"],
-    ["gemini", "Google Gemini API"],
-  ])("requires explicit consent before %s analysis", (provider, providerLabel) => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch");
-    render(<App />);
-    fireEvent.change(screen.getByLabelText("PUBLIC REPOSITORY URL"), {
-      target: { value: "https://github.com/owner/repo" },
-    });
-    fireEvent.change(screen.getByLabelText("AI ANALYSIS"), { target: { value: provider } });
-    fireEvent.change(screen.getByLabelText(provider === "gemini" ? "YOUR GOOGLE GEMINI API KEY" : "YOUR OPENAI API KEY"), {
-      target: { value: "test-user-key" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: /analyze repository/i }));
-    expect(screen.getByRole("alert")).toHaveTextContent("explicit consent");
-    expect(fetchSpy).not.toHaveBeenCalled();
-    fireEvent.change(screen.getByLabelText("AI ANALYSIS"), { target: { value: provider } });
-    expect(screen.getByRole("checkbox")).toHaveAccessibleName(new RegExp(providerLabel));
-  });
-
-  it("sends the supplied key for one analysis and clears it afterward", async () => {
+  it("runs scanner-only analysis without AI controls, keys, or model selection", async () => {
+    const analysisReport = {
+      repository: {
+        full_name: "octocat/hello",
+        description: "A public test repository",
+        default_branch: "main",
+        stars: 1,
+        forks: 2,
+        open_issues: 0,
+        license: null,
+        size_kb: 10,
+        html_url: "https://github.com/octocat/hello",
+        languages: { Python: 100 },
+        readme: "# Hello\n\nRepository README content.",
+        files: ["README.md"],
+        files_truncated: false,
+        github_rate_limit_remaining: 59,
+      },
+      findings: [],
+      dependency_summary: { scanned: 0, unsupported: 0, vulnerabilities: 0, notes: [] },
+      readme_quality: { score: 0, checks: [] },
+      scanner_notes: ["Only supported dependency manifests are checked."],
+      analyzed_at: "2026-01-01T00:00:00Z",
+    };
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({ detail: "Provider request failed." }), {
-        status: 502,
+      new Response(JSON.stringify(analysisReport), {
+        status: 200,
         headers: { "Content-Type": "application/json" },
       }),
     );
@@ -54,21 +57,15 @@ describe("RepoMind dashboard", () => {
     fireEvent.change(screen.getByLabelText("PUBLIC REPOSITORY URL"), {
       target: { value: "https://github.com/owner/repo" },
     });
-    fireEvent.change(screen.getByLabelText("AI ANALYSIS"), { target: { value: "openai" } });
-    const keyInput = screen.getByLabelText("YOUR OPENAI API KEY");
-    fireEvent.change(keyInput, { target: { value: "user-secret-key" } });
-    fireEvent.click(screen.getByRole("checkbox"));
     fireEvent.click(screen.getByRole("button", { name: /analyze repository/i }));
 
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledOnce());
-    const request = JSON.parse(fetchSpy.mock.calls[0][1]?.body as string);
-    expect(request).toMatchObject({
-      ai_provider: "openai",
-      api_key: "user-secret-key",
-      ai_model: "gpt-4o-mini",
-      consent_to_send_source: true,
+    expect(JSON.parse(fetchSpy.mock.calls[0][1]?.body as string)).toEqual({
+      repository_url: "https://github.com/owner/repo",
     });
-    await waitFor(() => expect(keyInput).toHaveValue(""));
-    expect(window.localStorage.length).toBe(0);
+    expect(screen.queryByLabelText(/AI ANALYSIS|API KEY|MODEL/)).not.toBeInTheDocument();
+    expect(screen.getByText(/no AI or API key/i)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "octocat/hello" })).toBeInTheDocument();
+    expect(screen.getByText(/Repository README content/)).toBeInTheDocument();
   });
 });

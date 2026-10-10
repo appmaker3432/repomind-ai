@@ -1,9 +1,7 @@
 from fastapi.testclient import TestClient
-import pytest
 
 from app.config import parse_frontend_origins
 from app.main import _rate_buckets, app
-from app.models import AnalysisRequest
 
 
 def setup_function() -> None:
@@ -17,57 +15,71 @@ def test_health_endpoint() -> None:
     assert response.json() == {"status": "ok"}
 
 
-@pytest.mark.parametrize("provider", ["openai", "gemini"])
-def test_online_ai_requires_explicit_consent_before_network_access(provider: str) -> None:
+def test_analysis_runs_without_ai_or_provider_credentials(monkeypatch) -> None:
+    class FakeGitHubClient:
+        rate_limit_remaining = 59
+
+        def __init__(self, client) -> None:
+            pass
+
+        async def inspect(self, reference):
+            repository = {
+                "full_name": "octocat/hello",
+                "description": "A test repository",
+                "default_branch": "main",
+                "stargazers_count": 1,
+                "forks_count": 2,
+                "open_issues_count": 0,
+                "license": None,
+                "size": 10,
+                "html_url": "https://github.com/octocat/hello",
+            }
+            return repository, {"Python": 100}, "# Hello", ["app.py"], False
+
+        async def fetch_source_files(self, reference, paths):
+            return {"app.py": "print('hello')"}
+
+    async def fake_audit_dependencies(source_files, client):
+        return [], 0, 0, []
+
+    monkeypatch.setattr("app.main.GitHubClient", FakeGitHubClient)
+    monkeypatch.setattr("app.main.run_bandit", lambda source_files: ([], []))
+    monkeypatch.setattr("app.main.audit_dependencies", fake_audit_dependencies)
+
     with TestClient(app) as client:
         response = client.post(
             "/api/analyze",
-            json={
-                "repository_url": "https://github.com/octocat/hello",
-                "ai_provider": provider,
-                "consent_to_send_source": False,
-            },
+            json={"repository_url": "https://github.com/octocat/hello"},
         )
-    assert response.status_code == 400
-    assert "Explicit consent" in response.json()["detail"]
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["repository"]["full_name"] == "octocat/hello"
+    assert payload["findings"] == []
+    assert "ai_summary" not in payload
+    assert "ai_status" not in payload
 
 
 def test_invalid_repository_url_is_rejected_before_network_access() -> None:
     with TestClient(app) as client:
         response = client.post(
             "/api/analyze",
-            json={"repository_url": "http://127.0.0.1/private", "ai_provider": "none"},
+            json={"repository_url": "http://127.0.0.1/private"},
         )
     assert response.status_code == 400
 
 
-def test_analysis_request_masks_and_normalizes_user_api_key() -> None:
-    request = AnalysisRequest(
-        repository_url="https://github.com/octocat/hello",
-        ai_provider="openai",
-        api_key="  user-secret-key  ",
-    )
-    assert request.api_key is not None
-    assert request.api_key.get_secret_value() == "  user-secret-key  "
-    assert "user-secret-key" not in repr(request)
-
-
-@pytest.mark.parametrize("api_key", ["", "   ", "x" * 501])
-def test_analysis_endpoint_rejects_blank_or_oversized_user_api_keys_without_echoing_them(api_key: str) -> None:
+def test_analysis_rejects_removed_ai_request_fields() -> None:
     with TestClient(app) as client:
         response = client.post(
             "/api/analyze",
             json={
                 "repository_url": "https://github.com/octocat/hello",
                 "ai_provider": "openai",
-                "consent_to_send_source": True,
-                "api_key": api_key,
+                "api_key": "unused-test-key",
             },
         )
-    assert response.status_code == 400
-    assert response.json()["detail"] == "API key must contain between 1 and 500 characters."
-    if api_key:
-        assert api_key not in response.text
+    assert response.status_code == 422
 
 
 def test_frontend_origins_parse_as_exact_origins() -> None:

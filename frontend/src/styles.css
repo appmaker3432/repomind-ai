@@ -86,10 +86,9 @@ h1 em { color: #65866b; font-style: normal; }
 .panel-title { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
 .panel-kicker { color: #859187; font: 500 9px Consolas,monospace; letter-spacing: .08em; }
 .panel-title h3 { margin: 7px 0 0; color: #34483d; font: 600 16px "Segoe UI",sans-serif; }
-.count-badge, .score, .ai-badge { padding: 6px 9px; border-radius: 5px; background: #f0f5ec; color: #56725a; font: 500 10px Consolas,monospace; }
+.count-badge, .score { padding: 6px 9px; border-radius: 5px; background: #f0f5ec; color: #56725a; font: 500 10px Consolas,monospace; }
 .score { color: #28543b; font-size: 18px; font-weight: 600; }
 .score small { color: #869087; font-size: 9px; font-weight: 400; }
-.ai-badge { background: #f4f1e6; color: #7c7046; }
 .empty-state { color: #7a847c; font-size: 11px; line-height: 1.65; }
 .panel-footnote { margin-top: 15px; padding-top: 11px; border-top: 1px solid #eff1ed; color: #89918b; font-size: 9px; line-height: 1.55; }
 .finding-list { display: grid; gap: 12px; max-height: 490px; overflow: auto; }
@@ -121,8 +120,7 @@ h1 em { color: #65866b; font-style: normal; }
 .file-glyph { width: 14px; color: #91a093; text-align: center; }
 .file-row code { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wide-panel { grid-column: 1 / -1; }
-.ai-section-heading { margin: 15px 0 5px; color: #3e5546; font-size: 11px; font-weight: 600; }
-.ai-copy { color: #48584d; font-size: 12px; line-height: 1.8; white-space: pre-wrap; }
+.readme-preview { max-height: 320px; overflow: auto; color: #48584d; font: 11px/1.7 Consolas,monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
 .disclaimer { display: flex; align-items: flex-start; gap: 12px; margin-top: 13px; padding: 15px; border: 1px solid #f0e5c8; border-radius: 8px; background: #fffaf0; color: #836c39; font-size: 10px; }
 .disclaimer > .icon { display: grid; place-items: center; width: 17px; height: 17px; border-radius: 50%; background: #f4e7c7; }
 .disclaimer strong, .disclaimer span { display: block; }

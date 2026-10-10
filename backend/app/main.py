@@ -17,11 +17,10 @@ from .github_client import (
     GitHubClient,
     parse_public_github_url,
 )
-from .models import AnalysisRequest, AnalysisResponse, AiSummary, DependencySummary, RepositoryMetadata
-from .providers import GeminiProvider, OllamaProvider, OpenAIProvider
+from .models import AnalysisRequest, AnalysisResponse, DependencySummary, RepositoryMetadata
 from .readme_analysis import analyze_readme
 from .scanner import run_bandit
-from .security import is_sensitive_path, redact_sensitive_lines
+from .security import is_sensitive_path
 
 _RATE_WINDOW_SECONDS = 60
 _MAX_REQUESTS_PER_WINDOW = 10
@@ -35,7 +34,7 @@ async def lifespan(_: FastAPI):
     yield
 
 
-app = FastAPI(title="RepoMind AI", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="RepoMind", version="0.1.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=parse_frontend_origins(get_settings().frontend_origins),
@@ -59,27 +58,6 @@ def _enforce_rate_limit(request: Request) -> None:
     _rate_buckets[client_address] = requests
 
 
-def _ai_context(readme: str, source_files: dict[str, str], files: list[str], description: str | None) -> str:
-    parts = [
-        f"Repository description: {redact_sensitive_lines(description or 'Not provided')}",
-        f"README:\n{redact_sensitive_lines(readme)[:8_000]}",
-    ]
-    visible_paths = [path for path in files if not is_sensitive_path(path)]
-    parts.append("Repository paths:\n" + "\n".join(visible_paths[:80]))
-    remaining_chars = 24_000
-    for path, content in source_files.items():
-        if is_sensitive_path(path):
-            continue
-        redacted = redact_sensitive_lines(content)
-        excerpt = redacted[: min(4_000, remaining_chars)]
-        if excerpt:
-            parts.append(f"File: {path}\n{excerpt}")
-            remaining_chars -= len(excerpt)
-        if remaining_chars <= 0:
-            break
-    return "\n\n".join(parts)
-
-
 @app.get("/api/health")
 async def health() -> dict[str, str]:
     return {"status": "ok"}
@@ -88,12 +66,6 @@ async def health() -> dict[str, str]:
 @app.post("/api/analyze", response_model=AnalysisResponse)
 async def analyze(body: AnalysisRequest, request: Request) -> AnalysisResponse:
     _enforce_rate_limit(request)
-    if body.ai_provider in {"openai", "gemini"} and not body.consent_to_send_source:
-        raise HTTPException(400, "Explicit consent is required before repository context is sent to an online AI provider.")
-
-    user_api_key = body.api_key.get_secret_value().strip() if body.api_key else None
-    if body.api_key is not None and (not user_api_key or len(user_api_key) > 500):
-        raise HTTPException(400, "API key must contain between 1 and 500 characters.")
 
     settings = get_settings()
     reference = parse_public_github_url(body.repository_url)
@@ -104,7 +76,7 @@ async def analyze(body: AnalysisRequest, request: Request) -> AnalysisResponse:
         headers={
             "Accept": "application/vnd.github+json",
             "X-GitHub-Api-Version": "2022-11-28",
-            "User-Agent": "RepoMind-AI",
+            "User-Agent": "RepoMind",
         },
     )
     service_client = httpx.AsyncClient(timeout=timeout, follow_redirects=False)
@@ -133,40 +105,6 @@ async def analyze(body: AnalysisRequest, request: Request) -> AnalysisResponse:
                 source_files, service_client
             )
             scanner_notes.extend(dependency_notes)
-
-            ai_summary = None
-            ai_status = "AI analysis was not run."
-            if body.ai_provider != "none":
-                context = _ai_context(readme, source_files, paths, repository.get("description"))
-                if body.ai_provider == "ollama":
-                    provider = OllamaProvider(httpx.AsyncClient(timeout=25.0, follow_redirects=False), settings.ollama_base_url, settings.ollama_model)
-                    try:
-                        summary, architecture, model = await provider.analyze(reference, context)
-                    finally:
-                        await provider.client.aclose()
-                elif body.ai_provider == "gemini":
-                    provider = GeminiProvider(
-                        httpx.AsyncClient(timeout=25.0, follow_redirects=False),
-                        user_api_key or settings.gemini_api_key,
-                        body.ai_model or settings.gemini_model,
-                    )
-                    try:
-                        summary, architecture, model = await provider.analyze(reference, context)
-                    finally:
-                        await provider.client.aclose()
-                else:
-                    provider = OpenAIProvider(
-                        user_api_key or settings.openai_api_key,
-                        body.ai_model or settings.openai_model,
-                    )
-                    summary, architecture, model = await provider.analyze(reference, context)
-                ai_summary = AiSummary(
-                    provider=provider.name,
-                    model=model,
-                    summary=summary,
-                    architecture=architecture,
-                )
-                ai_status = f"AI analysis ran with {provider.name}; validate its hypotheses against the source."
 
             metadata = RepositoryMetadata(
                 full_name=str(repository["full_name"]),
@@ -200,8 +138,6 @@ async def analyze(body: AnalysisRequest, request: Request) -> AnalysisResponse:
                     notes=dependency_notes,
                 ),
                 readme_quality=analyze_readme(readme),
-                ai_summary=ai_summary,
-                ai_status=ai_status,
                 scanner_notes=notes,
                 analyzed_at=datetime.now(UTC).isoformat(),
             )

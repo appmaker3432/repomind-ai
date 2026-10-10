@@ -1,5 +1,3 @@
-export type AiProvider = "none" | "ollama" | "openai" | "gemini";
-
 export interface RepositoryMetadata {
   full_name: string;
   description: string | null;
@@ -41,14 +39,6 @@ export interface AnalysisReport {
     score: number;
     checks: { name: string; passed: boolean; note: string }[];
   };
-  ai_summary: {
-    provider: string;
-    model: string;
-    summary: string;
-    architecture: string;
-    caveat: string;
-  } | null;
-  ai_status: string;
   scanner_notes: string[];
   analyzed_at: string;
 }

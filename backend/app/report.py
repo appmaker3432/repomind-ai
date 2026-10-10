@@ -6,11 +6,10 @@ from .models import AnalysisResponse
 def to_markdown(report: AnalysisResponse) -> str:
     repository = report.repository
     lines = [
-        f"# RepoMind AI report: {repository.full_name}",
+        f"# RepoMind report: {repository.full_name}",
         "",
         f"- Repository: [{repository.html_url}]({repository.html_url})",
         f"- Analyzed: {report.analyzed_at}",
-        f"- AI status: {report.ai_status}",
         "",
         "## Repository",
         "",
@@ -38,26 +37,7 @@ def to_markdown(report: AnalysisResponse) -> str:
                 "",
             ]
         )
-    lines.extend(["## AI analysis", ""])
-    if report.ai_summary is None:
-        lines.append("AI analysis was not run.")
-    else:
-        lines.extend(
-            [
-                f"Provider: {report.ai_summary.provider} ({report.ai_summary.model})",
-                "",
-                "### Project summary",
-                "",
-                report.ai_summary.summary,
-                "",
-                "### Architecture explanation",
-                "",
-                report.ai_summary.architecture,
-                "",
-                report.ai_summary.caveat,
-            ]
-        )
-    lines.extend(["", "## Scanner notes", ""])
+    lines.extend(["## Scanner notes", ""])
     lines.extend(f"- {note}" for note in report.scanner_notes)
     return "\n".join(lines) + "\n"
 

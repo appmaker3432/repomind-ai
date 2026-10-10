@@ -40,7 +40,7 @@ describe("analysis API errors", () => {
       ),
     );
     await expect(
-      analyzeRepository("https://github.com/octocat/hello-world", "openai", true),
+      analyzeRepository("https://github.com/octocat/hello-world"),
     ).rejects.toThrow("analysis API endpoint was not found");
   });
 });
@@ -67,8 +67,6 @@ describe("Markdown report export", () => {
       findings: [],
       dependency_summary: { scanned: 0, unsupported: 0, vulnerabilities: 0, notes: [] },
       readme_quality: { score: 0, checks: [] },
-      ai_summary: null,
-      ai_status: "AI analysis was not run.",
       scanner_notes: ["Only supported dependency manifests are checked."],
       analyzed_at: "2026-01-01T00:00:00Z",
     } satisfies AnalysisReport;

@@ -34,8 +34,6 @@ def test_report_exports_disclose_no_findings_is_not_a_security_guarantee() -> No
         findings=[],
         dependency_summary=DependencySummary(scanned=0, unsupported=0, vulnerabilities=0, notes=[]),
         readme_quality=analyze_readme(""),
-        ai_summary=None,
-        ai_status="AI analysis was not run.",
         scanner_notes=[],
         analyzed_at="2026-01-01T00:00:00+00:00",
     )

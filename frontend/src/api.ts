@@ -1,4 +1,4 @@
-import type { AiProvider, AnalysisReport } from "./types";
+import type { AnalysisReport } from "./types";
 
 export class AnalysisError extends Error {}
 
@@ -27,20 +27,11 @@ export function isPublicGitHubRepositoryUrl(value: string): boolean {
 
 export async function analyzeRepository(
   repositoryUrl: string,
-  aiProvider: AiProvider,
-  consentToSendSource: boolean,
-  apiKey?: string,
-  aiModel?: string,
 ): Promise<AnalysisReport> {
   const response = await fetch(apiUrl("/api/analyze"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      repository_url: repositoryUrl,
-      ai_provider: aiProvider,
-      consent_to_send_source: consentToSendSource,
-      ...(aiProvider === "openai" || aiProvider === "gemini" ? { api_key: apiKey, ai_model: aiModel } : {}),
-    }),
+    body: JSON.stringify({ repository_url: repositoryUrl }),
   });
   if (!response.ok) {
     let message = `Analysis failed with HTTP ${response.status}.`;
@@ -76,18 +67,11 @@ export function buildMarkdownReport(report: AnalysisReport): string {
               `- Evidence: ${finding.evidence}\n- Remediation: ${finding.remediation}`,
           )
           .join("\n\n");
-  const ai =
-    report.ai_summary === null
-      ? "AI analysis was not run."
-      :       `Provider: ${report.ai_summary.provider} (${report.ai_summary.model})\n\n` +
-      `### Project summary\n\n${report.ai_summary.summary}\n\n` +
-      `### Architecture explanation\n\n${report.ai_summary.architecture}\n\n${report.ai_summary.caveat}`;
   return [
-    `# RepoMind AI report: ${report.repository.full_name}`,
+    `# RepoMind report: ${report.repository.full_name}`,
     "",
     `- Repository: ${report.repository.html_url}`,
     `- Analyzed: ${report.analyzed_at}`,
-    `- AI status: ${report.ai_status}`,
     "",
     "## README quality",
     "",
@@ -99,10 +83,6 @@ export function buildMarkdownReport(report: AnalysisReport): string {
     "## Security findings",
     "",
     findings,
-    "",
-    "## AI analysis",
-    "",
-    ai,
     "",
     "## Scanner notes",
     "",

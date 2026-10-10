@@ -1,14 +1,12 @@
 from typing import Literal
 
-from pydantic import BaseModel, Field, SecretStr
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class AnalysisRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     repository_url: str = Field(min_length=1, max_length=500)
-    ai_provider: Literal["none", "ollama", "openai", "gemini"] = "none"
-    consent_to_send_source: bool = False
-    api_key: SecretStr | None = Field(default=None, repr=False)
-    ai_model: str | None = Field(default=None, min_length=1, max_length=200)
 
 
 class RepositoryMetadata(BaseModel):
@@ -46,14 +44,6 @@ class DependencySummary(BaseModel):
     notes: list[str]
 
 
-class AiSummary(BaseModel):
-    provider: str
-    model: str
-    summary: str
-    architecture: str
-    caveat: str = "AI-generated hypotheses; verify against source. Not a security verdict."
-
-
 class ReadmeQuality(BaseModel):
     score: int
     checks: list[dict[str, str | bool]]
@@ -64,7 +54,5 @@ class AnalysisResponse(BaseModel):
     findings: list[SecurityFinding]
     dependency_summary: DependencySummary
     readme_quality: ReadmeQuality
-    ai_summary: AiSummary | None
-    ai_status: str
     scanner_notes: list[str]
     analyzed_at: str
